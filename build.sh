@@ -118,6 +118,21 @@ cmd buildah config \
     --label org.opencontainers.image.licenses- \
     "$CONTAINER"
 
+echo + "PMA_VERSION=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$VERSION\"')\""
+PMA_VERSION="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$VERSION"')"
+
+cmd buildah config \
+    --annotation org.opencontainers.image.title="phpMyAdmin" \
+    --annotation org.opencontainers.image.description="A php-fpm container of phpMyAdmin." \
+    --annotation org.opencontainers.image.version="$PMA_VERSION" \
+    --annotation org.opencontainers.image.url="https://github.com/SGSGermany/phpmyadmin" \
+    --annotation org.opencontainers.image.authors="SGS Serious Gaming & Simulations GmbH" \
+    --annotation org.opencontainers.image.vendor="SGS Serious Gaming & Simulations GmbH" \
+    --annotation org.opencontainers.image.licenses="MIT" \
+    --annotation org.opencontainers.image.base.name="$BASE_IMAGE" \
+    --annotation org.opencontainers.image.base.digest="$(podman image inspect --format '{{.Digest}}' "$BASE_IMAGE")" \
+    "$CONTAINER"
+
 cmd buildah commit "$CONTAINER" "$IMAGE:${TAGS[0]}"
 cmd buildah rm "$CONTAINER"
 
