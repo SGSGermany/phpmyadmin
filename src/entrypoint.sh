@@ -14,7 +14,7 @@ set -e
 
 [ $# -gt 0 ] || set -- php-fpm "$@"
 if [ "$1" == "php-fpm" ]; then
-    # create phpMyAdmin blowfish secreat
+    # create phpMyAdmin blowfish secret
     if [ ! -f /etc/phpmyadmin/config.secret.inc.php ] && [ -z "$PMA_SECRET" ]; then
         PMA_SECRET="$(LC_ALL=C tr -dc '[:graph:]' < /dev/urandom 2> /dev/null | tr -d "\\\'" | head -c 32 || true)"
         printf "<?php\n\$cfg['blowfish_secret'] = '%s';\n" "$PMA_SECRET" \
@@ -24,7 +24,7 @@ if [ "$1" == "php-fpm" ]; then
     # upgrade phpMyAdmin sources if necessary
     PMA_VERSION_SRC="$(sed -ne 's/^VERSION=\(.*\)$/\1/p' /usr/src/phpmyadmin/pma_version_info)"
 
-    if [ -n "$(find /var/www/html -maxdepth 0 -empty)" ]; then
+    if [ -n "$(find /var/www/html -maxdepth 0 -empty)" ] || [ ! -f /var/www/pma_version_info ]; then
         echo "Initializing phpMyAdmin $PMA_VERSION_SRC..."
         rsync -rlptog /usr/src/phpmyadmin/ /var/www/
     else
