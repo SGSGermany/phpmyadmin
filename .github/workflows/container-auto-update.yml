@@ -69,12 +69,6 @@ jobs:
           . <(curl -fsS -L "$CI_TOOLS_SETUP" | bash -s ~/ci-tools)
           echo "CI_TOOLS_PATH=$CI_TOOLS_PATH" | tee -a "$GITHUB_ENV"
 
-      - name: Setup container storage
-        run: |
-          mkdir -p ~/.config/containers
-          echo '[storage]' > ~/.config/containers/storage.conf
-          echo 'driver = "vfs"' >> ~/.config/containers/storage.conf
-
       - name: Checkout repository
         uses: actions/checkout@v2
         with:
