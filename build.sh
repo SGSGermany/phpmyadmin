@@ -60,10 +60,14 @@ if ! [[ "$MERGING_IMAGE_BASE_IMAGE" =~ $MERGING_IMAGE_BASE_IMAGE_REGEX ]]; then
     exit 1
 fi
 
-# build image
+# build base image
 echo + "buildah bud -t $IMAGE-base --from $BASE_IMAGE ./vendor/$MERGING_IMAGE_BUD_CONTEXT"
 buildah bud -t "$IMAGE-base" --from "$BASE_IMAGE" "$BUILD_DIR/vendor/$MERGING_IMAGE_BUD_CONTEXT"
 
+echo + "rm -rf ./vendor"
+rm -rf "$BUILD_DIR/vendor"
+
+# build image
 echo + "CONTAINER=\"\$(buildah from $IMAGE-base)\""
 CONTAINER="$(buildah from "$IMAGE-base")"
 
@@ -77,22 +81,32 @@ echo + "rsync -v -rl --exclude .gitignore ./src/ …/"
 rsync -v -rl --exclude '.gitignore' "$BUILD_DIR/src/" "$MOUNT/"
 
 echo + "mv …/var/www/html …/usr/src/phpmyadmin/html"
-mv "$MOUNT/var/www/html" "$MOUNT/usr/src/phpmyadmin/html"
+mv "$MOUNT/var/www/html" "$MOUNT/usr/src/phpmyadmin/phpmyadmin"
+
+echo + "PMA_VERSION=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$VERSION\"')\""
+PMA_VERSION="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$VERSION"')"
+
+echo + "PMA_SHA256=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$SHA256\"')\""
+PMA_SHA256="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$SHA256"')"
+
+echo + "PMA_URL=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$URL\"')\""
+PMA_URL="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$URL"')"
 
 cmd buildah run "$CONTAINER" -- \
-    chown www-data:www-data "/var/www"
+    /bin/sh -c "printf '%s=%s\n' \"\$@\" > /usr/src/phpmyadmin/version_info" -- \
+        VERSION "$PMA_VERSION" \
+        SHA256 "$PMA_SHA256" \
+        URL "$PMA_URL"
 
 cmd buildah run "$CONTAINER" -- \
-    /bin/sh -c "printf 'VERSION=%s\n' \"\$VERSION\" >> /usr/src/phpmyadmin/pma_version_info"
+    chown -R www-data:www-data \
+        "/usr/src/phpmyadmin/phpmyadmin" \
+        "/usr/src/phpmyadmin/version_info" \
+        "/var/www"
 
 cmd buildah run "$CONTAINER" -- \
-    /bin/sh -c "printf 'SHA256=%s\n' \"\$SHA256\" >> /usr/src/phpmyadmin/pma_version_info"
-
-cmd buildah run "$CONTAINER" -- \
-    /bin/sh -c "printf 'URL=%s\n' \"\$URL\" >> /usr/src/phpmyadmin/pma_version_info"
-
-cmd buildah run "$CONTAINER" -- \
-    apk add --virtual .pma-run-deps rsync
+    apk add --no-cache --virtual .pma-run-deps \
+        rsync
 
 cmd buildah run "$CONTAINER" -- \
     adduser -u 65538 -s "/sbin/nologin" -D -h "/" -H mysql
@@ -117,9 +131,6 @@ cmd buildah config \
     --label org.opencontainers.image.vendor- \
     --label org.opencontainers.image.licenses- \
     "$CONTAINER"
-
-echo + "PMA_VERSION=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$VERSION\"')\""
-PMA_VERSION="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$VERSION"')"
 
 cmd buildah config \
     --annotation org.opencontainers.image.title="phpMyAdmin" \
