@@ -3,6 +3,7 @@
 $env = (function () {
     $env = [];
     foreach (getenv() as $name => $value) {
+        $value = trim($value);
         if ((substr($name, 0, 4) === 'PMA_') && ($value !== '')) {
             $env[$name] = $value;
         }
