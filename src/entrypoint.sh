@@ -40,7 +40,7 @@ if [ "$1" == "php-fpm" ]; then
             PMA_VERSION_LIVE="$(sed -ne 's/^VERSION=\(.*\)$/\1/p' /var/www/pma_version_info)"
 
             echo "Upgrading phpMyAdmin $PMA_VERSION_LIVE to $PMA_VERSION_SRC..."
-            rsync -rlptog --chown www-data:www-data --delete
+            rsync -rlptog --chown www-data:www-data --delete \
                 "/usr/src/phpmyadmin/phpmyadmin/" \
                 "/var/www/html/"
             rsync -lptog --chown www-data:www-data \
