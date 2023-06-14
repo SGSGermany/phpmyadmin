@@ -1,6 +1,6 @@
 #!/bin/bash
 # phpMyAdmin
-# A php-fpm container of phpMyAdmin.
+# A php-fpm container running phpMyAdmin.
 #
 # Copyright (c) 2021  SGS Serious Gaming & Simulations GmbH
 #
@@ -134,7 +134,7 @@ cmd buildah config \
 
 cmd buildah config \
     --annotation org.opencontainers.image.title="phpMyAdmin" \
-    --annotation org.opencontainers.image.description="A php-fpm container of phpMyAdmin." \
+    --annotation org.opencontainers.image.description="A php-fpm container running phpMyAdmin." \
     --annotation org.opencontainers.image.version="$PMA_VERSION" \
     --annotation org.opencontainers.image.url="https://github.com/SGSGermany/phpmyadmin" \
     --annotation org.opencontainers.image.authors="SGS Serious Gaming & Simulations GmbH" \

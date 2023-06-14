@@ -1,4 +1,4 @@
 phpMyAdmin
 ==========
 
-A php-fpm container of phpMyAdmin.
+A php-fpm container running phpMyAdmin.

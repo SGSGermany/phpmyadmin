@@ -1,4 +1,16 @@
 <?php
+/**
+ * phpMyAdmin
+ * A php-fpm container running phpMyAdmin.
+ *
+ * Copyright (c) 2021  SGS Serious Gaming & Simulations GmbH
+ *
+ * This work is licensed under the terms of the MIT license.
+ * For a copy, see LICENSE file or <https://opensource.org/licenses/MIT>.
+ *
+ * SPDX-License-Identifier: MIT
+ * License-Filename: LICENSE
+ */
 
 $env = (function () {
     $env = [];

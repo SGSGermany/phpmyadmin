@@ -1,6 +1,6 @@
 #!/bin/bash
 # phpMyAdmin
-# A php-fpm container of phpMyAdmin.
+# A php-fpm container running phpMyAdmin.
 #
 # Copyright (c) 2021  SGS Serious Gaming & Simulations GmbH
 #
