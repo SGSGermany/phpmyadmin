@@ -12,18 +12,9 @@
  * License-Filename: LICENSE
  */
 
-$env = (function () {
-    $env = [];
-    foreach (getenv() as $name => $value) {
-        $value = trim($value);
-        if ((substr($name, 0, 4) === 'PMA_') && ($value !== '')) {
-            $env[$name] = $value;
-        }
-    }
+$cfg = [];
 
-    return $env;
-})();
-
+// server config
 $i = 1;
 $cfg['Servers'][$i] = [
     'host' => 'localhost',
@@ -43,9 +34,16 @@ $cfg['Servers'][$i] = [
     ],
 ];
 
-if (isset($env['PMA_PMADB'])) {
+// phpMyAdmin database config
+$databaseConfig = [];
+
+if (file_exists('/etc/phpmyadmin/config.database.inc.php')) {
+    require('/etc/phpmyadmin/config.database.inc.php');
+}
+
+if (isset($databaseConfig['database'])) {
     $cfg['Servers'][$i] += [
-        'pmadb' => $env['PMA_PMADB'],
+        'pmadb' => $databaseConfig['database'],
         'relation' => 'pma__relation',
         'table_info' => 'pma__table_info',
         'table_coords' => 'pma__table_coords',
@@ -67,15 +65,16 @@ if (isset($env['PMA_PMADB'])) {
         'export_templates' => 'pma__export_templates',
     ];
 
-    if (isset($env['PMA_CONTROLUSER'])) {
-        $cfg['Servers'][$i]['controluser'] = $env['PMA_CONTROLUSER'];
+    if (isset($databaseConfig['user'])) {
+        $cfg['Servers'][$i]['controluser'] = $databaseConfig['user'];
     }
 
-    if (isset($env['PMA_CONTROLPASS'])) {
-        $cfg['Servers'][$i]['controlpass'] = $env['PMA_CONTROLPASS'];
+    if (isset($databaseConfig['password'])) {
+        $cfg['Servers'][$i]['controlpass'] = $databaseConfig['password'];
     }
 }
 
+// global config
 $cfg['UploadDir'] = '';
 $cfg['SaveDir'] = '';
 $cfg['TempDir'] = sys_get_temp_dir();
@@ -84,14 +83,26 @@ $cfg['MemoryLimit'] = ini_get('memory_limit');
 $cfg['AuthLog'] = 'php';
 $cfg['VersionCheck'] = false;
 
+// load config.user.inc.php
 if (file_exists('/etc/phpmyadmin/config.user.inc.php')) {
     require('/etc/phpmyadmin/config.user.inc.php');
 }
 
-if (isset($env['PMA_SECRET'])) {
-    $cfg['blowfish_secret'] = $env['PMA_SECRET'];
+// secrets config
+// the secrets config can't be overwritten by 'config.user.inc.php' on purpose
+// either provide a custom 'config.secrets.inc.php', or use container secrets instead
+$secrets = [];
+
+if (file_exists('/etc/phpmyadmin/config.secrets.inc.php')) {
+    require('/etc/phpmyadmin/config.secrets.inc.php');
 }
 
-if (file_exists('/etc/phpmyadmin/config.secret.inc.php')) {
-    require('/etc/phpmyadmin/config.secret.inc.php');
+if (!isset($secrets['blowfish_secret'])) {
+    // generate 32 random printable ASCII chars as blowfish secret
+    $secrets['blowfish_secret'] = '';
+    for ($i = 0; $i < 32; $i++) {
+        $secrets['blowfish_secret'] .= chr(random_int(33, 126));
+    }
 }
+
+$cfg['blowfish_secret'] = $secrets['blowfish_secret'];

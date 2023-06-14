@@ -14,12 +14,8 @@ set -e
 
 [ $# -gt 0 ] || set -- php-fpm "$@"
 if [ "$1" == "php-fpm" ]; then
-    # create phpMyAdmin blowfish secret
-    if [ ! -f /etc/phpmyadmin/config.secret.inc.php ] && [ -z "$PMA_SECRET" ]; then
-        PMA_SECRET="$(LC_ALL=C tr -dc '[\x21-\x7E]' < /dev/urandom 2> /dev/null | tr -d "\\\'" | head -c 32 || true)"
-        printf "<?php\n\$cfg['blowfish_secret'] = '%s';\n" "$PMA_SECRET" \
-            > /etc/phpmyadmin/config.secret.inc.php
-    fi
+    # initialize config, if necessary
+    /usr/lib/phpmyadmin/config.sh
 
     # setup phpMyAdmin, if necessary
     /usr/lib/phpmyadmin/setup.sh
