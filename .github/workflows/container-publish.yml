@@ -8,8 +8,11 @@ on:
 concurrency: build
 
 env:
-  GIT_REMOTE_URL: ${{ github.server_url }}/${{ github.repository }}.git
   CI_TOOLS_SETUP: https://raw.githubusercontent.com/SGSGermany/ci-tools/main/setup.sh
+
+defaults:
+  run:
+    shell: bash -eu -o pipefail {0}
 
 jobs:
   build:
@@ -26,7 +29,8 @@ jobs:
     steps:
       - name: Setup CI tools
         run: |
-          . <(curl -fsS -L "$CI_TOOLS_SETUP" | bash -s ~/ci-tools "5f1fd47b7be27639652e19acb37af3b2d2db8a33")
+          . <(curl -fsS -L "$CI_TOOLS_SETUP" | bash -s ~/ci-tools)
+          echo "CI_TOOLS=$CI_TOOLS" | tee -a "$GITHUB_ENV"
           echo "CI_TOOLS_PATH=$CI_TOOLS_PATH" | tee -a "$GITHUB_ENV"
 
       - name: Checkout repository
@@ -39,23 +43,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Generate container image tags
+        run: |
+          source <(./tags.sh "$GITHUB_RUN_ID.$GITHUB_RUN_NUMBER")
+          echo "VERSION=$VERSION" | tee -a "$GITHUB_ENV"
+          echo "TAGS=$TAGS" | tee -a "$GITHUB_ENV"
+
       - name: Build container image
         run: |
           buildah unshare ./build.sh
 
-      - name: Generate container image tags
-        run: |
-          source <(./tags.sh)
-          echo "VERSION=$VERSION" | tee -a "$GITHUB_ENV"
-          echo "TAGS=${TAGS:-latest}" | tee -a "$GITHUB_ENV"
-
-      - name: Add container image tags
-        run: |
-          "$CI_TOOLS_PATH/containers/add-image-tags.sh" "latest"
-
       - name: Container image metadata
         run: |
-          podman image inspect "$IMAGE:latest"
+          podman image inspect "localhost/$IMAGE:${TAGS%% *}"
 
       - name: Push container image
         uses: redhat-actions/push-to-registry@v2

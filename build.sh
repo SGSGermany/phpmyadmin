@@ -11,114 +11,85 @@
 # License-Filename: LICENSE
 
 set -eu -o pipefail
-export LC_ALL=C
+export LC_ALL=C.UTF-8
 
-cmd() {
-    echo + "$@"
-    "$@"
-    return $?
-}
+[ -v CI_TOOLS ] && [ "$CI_TOOLS" == "SGSGermany" ] \
+    || { echo "Invalid build environment: Environment variable 'CI_TOOLS' not set or invalid" >&2; exit 1; }
+
+[ -v CI_TOOLS_PATH ] && [ -d "$CI_TOOLS_PATH" ] \
+    || { echo "Invalid build environment: Environment variable 'CI_TOOLS_PATH' not set or invalid" >&2; exit 1; }
+
+source "$CI_TOOLS_PATH/helper/common.sh.inc"
+source "$CI_TOOLS_PATH/helper/container.sh.inc"
+source "$CI_TOOLS_PATH/helper/container-alpine.sh.inc"
+source "$CI_TOOLS_PATH/helper/git.sh.inc"
 
 BUILD_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-[ -f "$BUILD_DIR/container.env" ] && source "$BUILD_DIR/container.env" \
-    || { echo "ERROR: Container environment not found" >&2; exit 1; }
+source "$BUILD_DIR/container.env"
 
 readarray -t -d' ' TAGS < <(printf '%s' "$TAGS")
 
-# checkout Git repo of the image to merge
-echo + "mkdir ./vendor"
-mkdir "$BUILD_DIR/vendor"
+VERSION="$(git_latest "$MERGE_IMAGE_GIT_REPO" "$VERSION_PATTERN")"
 
-echo + "git -C ./vendor/ init"
-git -C "$BUILD_DIR/vendor/" init
+git_clone "$MERGE_IMAGE_GIT_REPO" "refs/tags/$VERSION" "$BUILD_DIR/vendor" "./vendor"
 
-echo + "git -C ./vendor/ remote add origin $MERGING_IMAGE_GIT_REPO"
-git -C "$BUILD_DIR/vendor/" remote add "origin" "$MERGING_IMAGE_GIT_REPO"
+echo + "HASH=\"\$(git -C ./vendor rev-parse HEAD)\"" >&2
+HASH="$(git -C "$BUILD_DIR/vendor" rev-parse HEAD)"
 
-echo + "MERGING_IMAGE_GIT_COMMIT=\"\$(git -C ./vendor/ ls-remote --refs origin $MERGING_IMAGE_GIT_REF | tail -n 1 | cut -f 1)\""
-MERGING_IMAGE_GIT_COMMIT="$(git -C "$BUILD_DIR/vendor/" ls-remote --refs origin "$MERGING_IMAGE_GIT_REF" | tail -n 1 | cut -f 1)"
+con_build --tag "$IMAGE-base" \
+    --from "$BASE_IMAGE" --check-from "$MERGE_IMAGE_BASE_IMAGE_PATTERN" \
+    "$BUILD_DIR/vendor/$MERGE_IMAGE_BUD_CONTEXT" "./vendor/$MERGE_IMAGE_BUD_CONTEXT"
 
-echo + "git -C ./vendor/ fetch --depth 1 origin $MERGING_IMAGE_GIT_COMMIT"
-git -C "$BUILD_DIR/vendor/" fetch --depth 1 origin "$MERGING_IMAGE_GIT_COMMIT"
-
-echo + "git -C ./vendor/ checkout --detach $MERGING_IMAGE_GIT_COMMIT"
-git -C "$BUILD_DIR/vendor/" checkout --detach "$MERGING_IMAGE_GIT_COMMIT"
-
-# validate Dockerfile of the image to merge
-echo + "[ -f ./vendor/$MERGING_IMAGE_BUD_CONTEXT/Dockerfile ]"
-if [ ! -f "$BUILD_DIR/vendor/$MERGING_IMAGE_BUD_CONTEXT/Dockerfile" ]; then
-    echo "ERROR: Invalid image to merge: Dockerfile '$BUILD_DIR/vendor/$MERGING_IMAGE_BUD_CONTEXT/Dockerfile' not found" >&2
-    exit 1
-fi
-
-echo + "MERGING_IMAGE_BASE_IMAGE=\"\$(sed -n -e 's/^FROM\s*\(.*\)$/\1/p' ./vendor/$MERGING_IMAGE_BUD_CONTEXT/Dockerfile)\""
-MERGING_IMAGE_BASE_IMAGE="$(sed -n -e 's/^FROM\s*\(.*\)$/\1/p' "$BUILD_DIR/vendor/$MERGING_IMAGE_BUD_CONTEXT/Dockerfile")"
-
-echo + "[[ $MERGING_IMAGE_BASE_IMAGE =~ $MERGING_IMAGE_BASE_IMAGE_REGEX ]]"
-if ! [[ "$MERGING_IMAGE_BASE_IMAGE" =~ $MERGING_IMAGE_BASE_IMAGE_REGEX ]]; then
-    echo "ERROR: Invalid image to merge: Expecting original base image to match '$MERGING_IMAGE_BASE_IMAGE_REGEX', got '$MERGING_IMAGE_BASE_IMAGE'" >&2
-    exit 1
-fi
-
-# build base image
-echo + "buildah bud -t $IMAGE-base --from $BASE_IMAGE ./vendor/$MERGING_IMAGE_BUD_CONTEXT"
-buildah bud -t "$IMAGE-base" --from "$BASE_IMAGE" "$BUILD_DIR/vendor/$MERGING_IMAGE_BUD_CONTEXT"
-
-echo + "rm -rf ./vendor"
-rm -rf "$BUILD_DIR/vendor"
-
-# build image
-echo + "CONTAINER=\"\$(buildah from $IMAGE-base)\""
+echo + "CONTAINER=\"\$(buildah from $(quote "$IMAGE-base"))\"" >&2
 CONTAINER="$(buildah from "$IMAGE-base")"
 
-echo + "MOUNT=\"\$(buildah mount $CONTAINER)\""
+echo + "MOUNT=\"\$(buildah mount $(quote "$CONTAINER"))\"" >&2
 MOUNT="$(buildah mount "$CONTAINER")"
 
-echo + "rm -f …/docker-entrypoint.sh"
+echo + "rm -f …/docker-entrypoint.sh" >&2
 rm -f "$MOUNT/docker-entrypoint.sh"
 
-echo + "rsync -v -rl --exclude .gitignore ./src/ …/"
+echo + "rsync -v -rl --exclude .gitignore ./src/ …/" >&2
 rsync -v -rl --exclude '.gitignore' "$BUILD_DIR/src/" "$MOUNT/"
 
-echo + "mv …/var/www/html …/usr/src/phpmyadmin/html"
+echo + "mv …/var/www/html …/usr/src/phpmyadmin/phpmyadmin" >&2
 mv "$MOUNT/var/www/html" "$MOUNT/usr/src/phpmyadmin/phpmyadmin"
 
-echo + "PMA_VERSION=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$VERSION\"')\""
+cmd buildah run "$CONTAINER" -- \
+    chown root:root "/usr/src/phpmyadmin/phpmyadmin"
+
+cmd buildah run "$CONTAINER" -- \
+    chmod 755 "/usr/src/phpmyadmin/phpmyadmin"
+
+echo + "mkdir -p …/var/www/html" >&2
+mkdir -p "$MOUNT/var/www/html"
+
+cmd buildah run "$CONTAINER" -- \
+    chown www-data:www-data "/var/www/html"
+
+echo + "PMA_VERSION=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$VERSION\"')\"" >&2
 PMA_VERSION="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$VERSION"')"
 
-echo + "PMA_SHA256=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$SHA256\"')\""
+echo + "PMA_SHA256=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$SHA256\"')\"" >&2
 PMA_SHA256="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$SHA256"')"
 
-echo + "PMA_URL=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$URL\"')\""
+echo + "PMA_URL=\"\$(buildah run $CONTAINER -- /bin/sh -c 'echo \"\$URL\"')\"" >&2
 PMA_URL="$(buildah run "$CONTAINER" -- /bin/sh -c 'echo "$URL"')"
 
 cmd buildah run "$CONTAINER" -- \
     /bin/sh -c "printf '%s=%s\n' \"\$@\" > /usr/src/phpmyadmin/version_info" -- \
-        VERSION "$PMA_VERSION" \
-        SHA256 "$PMA_SHA256" \
-        URL "$PMA_URL"
+        VERSION "$VERSION" \
+        HASH "$HASH" \
+        PMA_VERSION "$PMA_VERSION" \
+        PMA_SHA256 "$PMA_SHA256" \
+        PMA_URL "$PMA_URL"
 
-cmd buildah run "$CONTAINER" -- \
-    chown -R www-data:www-data \
-        "/usr/src/phpmyadmin/phpmyadmin" \
-        "/usr/src/phpmyadmin/version_info" \
-        "/var/www"
+pkg_install "$CONTAINER" --virtual .pma-run-deps \
+    rsync
 
-cmd buildah run "$CONTAINER" -- \
-    apk add --no-cache --virtual .pma-run-deps \
-        rsync
+user_add "$CONTAINER" mysql 65538
 
-cmd buildah run "$CONTAINER" -- \
-    adduser -u 65538 -s "/sbin/nologin" -D -h "/" -H mysql
-
-cmd buildah config \
-    --entrypoint '[ "/entrypoint.sh" ]' \
-    "$CONTAINER"
-
-cmd buildah config \
-    --volume "/var/www" \
-    --volume "/run/mysql" \
-    "$CONTAINER"
+cleanup "$CONTAINER"
 
 cmd buildah config \
     --label org.opencontainers.image.title- \
@@ -130,6 +101,25 @@ cmd buildah config \
     --label org.opencontainers.image.authors- \
     --label org.opencontainers.image.vendor- \
     --label org.opencontainers.image.licenses- \
+    --env MAX_EXECUTION_TIME- \
+    --env MEMORY_LIMIT- \
+    --env UPLOAD_LIMIT- \
+    --env VERSION- \
+    --env SHA256- \
+    --env URL- \
+    "$CONTAINER"
+
+cmd buildah config \
+    --env PMA_VERSION="$PMA_VERSION" \
+    "$CONTAINER"
+
+cmd buildah config \
+    --entrypoint '[ "/entrypoint.sh" ]' \
+    "$CONTAINER"
+
+cmd buildah config \
+    --volume "/var/www" \
+    --volume "/run/mysql" \
     "$CONTAINER"
 
 cmd buildah config \
@@ -144,10 +134,4 @@ cmd buildah config \
     --annotation org.opencontainers.image.base.digest="$(podman image inspect --format '{{.Digest}}' "$BASE_IMAGE")" \
     "$CONTAINER"
 
-cmd buildah commit "$CONTAINER" "$IMAGE:${TAGS[0]}"
-cmd buildah rm "$CONTAINER"
-
-for TAG in "${TAGS[@]:1}"; do
-    cmd buildah tag "$IMAGE:${TAGS[0]}" "$IMAGE:$TAG"
-done
-
+con_commit "$CONTAINER" "${TAGS[@]}"
