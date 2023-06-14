@@ -21,33 +21,8 @@ if [ "$1" == "php-fpm" ]; then
             > /etc/phpmyadmin/config.secret.inc.php
     fi
 
-    # upgrade phpMyAdmin sources if necessary
-    PMA_VERSION_SRC="$(sed -ne 's/^PMA_VERSION=\(.*\)$/\1/p' /usr/src/phpmyadmin/version_info)"
-
-    if [ ! -f "/var/www/pma_version_info" ]; then
-        echo "Initializing phpMyAdmin $PMA_VERSION_SRC..."
-        rsync -rlptog --chown www-data:www-data \
-            "/usr/src/phpmyadmin/phpmyadmin/" \
-            "/var/www/html/"
-        rsync -lptog --chown www-data:www-data \
-            "/usr/src/phpmyadmin/version_info" \
-            "/var/www/pma_version_info"
-    else
-        PMA_SHA256_SRC="$(sed -ne 's/^PMA_SHA256=\(.*\)$/\1/p' /usr/src/phpmyadmin/version_info)"
-        PMA_SHA256_LIVE="$(sed -ne 's/^PMA_SHA256=\(.*\)$/\1/p' /var/www/pma_version_info)"
-
-        if [ -z "$PMA_SHA256_LIVE" ] || [ "$PMA_SHA256_LIVE" != "$PMA_SHA256_SRC" ]; then
-            PMA_VERSION_LIVE="$(sed -ne 's/^PMA_VERSION=\(.*\)$/\1/p' /var/www/pma_version_info)"
-
-            echo "Upgrading phpMyAdmin $PMA_VERSION_LIVE to $PMA_VERSION_SRC..."
-            rsync -rlptog --chown www-data:www-data --delete \
-                "/usr/src/phpmyadmin/phpmyadmin/" \
-                "/var/www/html/"
-            rsync -lptog --chown www-data:www-data \
-                "/usr/src/phpmyadmin/version_info" \
-                "/var/www/pma_version_info"
-        fi
-    fi
+    # setup phpMyAdmin, if necessary
+    /usr/lib/phpmyadmin/setup.sh
 
     exec "$@"
 fi
