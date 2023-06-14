@@ -49,6 +49,9 @@ MOUNT="$(buildah mount "$CONTAINER")"
 echo + "rm -f …/docker-entrypoint.sh" >&2
 rm -f "$MOUNT/docker-entrypoint.sh"
 
+echo + "rm -f …/etc/php/conf.d/phpmyadmin-misc.ini" >&2
+rm -f "$MOUNT/etc/php/conf.d/phpmyadmin-misc.ini"
+
 echo + "rsync -v -rl --exclude .gitignore ./src/ …/" >&2
 rsync -v -rl --exclude '.gitignore' "$BUILD_DIR/src/" "$MOUNT/"
 
