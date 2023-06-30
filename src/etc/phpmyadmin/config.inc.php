@@ -88,6 +88,13 @@ if (file_exists('/etc/phpmyadmin/config.user.inc.php')) {
     require('/etc/phpmyadmin/config.user.inc.php');
 }
 
+// load conf.d/*.php files
+if (is_dir('/etc/phpmyadmin/conf.d/')) {
+    foreach (glob('/etc/phpmyadmin/conf.d/*.php') as $configFile) {
+        require($configFile);
+    }
+}
+
 // secrets config
 // the secrets config can't be overwritten by 'config.user.inc.php' on purpose
 // either provide a custom 'config.secrets.inc.php', or use container secrets instead
