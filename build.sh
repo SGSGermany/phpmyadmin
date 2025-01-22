@@ -55,6 +55,12 @@ rm -f "$MOUNT/etc/php/conf.d/phpmyadmin-misc.ini"
 echo + "rm -rf …/etc/phpmyadmin" >&2
 rm -rf "$MOUNT/etc/phpmyadmin"
 
+echo + "rmdir …/var/www/html/tmp" >&2
+rmdir "$MOUNT/var/www/html/tmp"
+
+echo + "rmdir …/sessions" >&2
+rmdir "$MOUNT/sessions"
+
 echo + "rsync -v -rl --exclude .gitignore ./src/ …/" >&2
 rsync -v -rl --exclude '.gitignore' "$BUILD_DIR/src/" "$MOUNT/"
 
@@ -62,10 +68,7 @@ echo + "mv …/var/www/html …/usr/src/phpmyadmin/phpmyadmin" >&2
 mv "$MOUNT/var/www/html" "$MOUNT/usr/src/phpmyadmin/phpmyadmin"
 
 cmd buildah run "$CONTAINER" -- \
-    chown root:root "/usr/src/phpmyadmin/phpmyadmin"
-
-cmd buildah run "$CONTAINER" -- \
-    chmod 755 "/usr/src/phpmyadmin/phpmyadmin"
+    chown -R root:root "/usr/src/phpmyadmin/phpmyadmin"
 
 echo + "mkdir -p …/var/www/html" >&2
 mkdir -p "$MOUNT/var/www/html"
@@ -107,12 +110,16 @@ cmd buildah config \
     --label org.opencontainers.image.authors- \
     --label org.opencontainers.image.vendor- \
     --label org.opencontainers.image.licenses- \
+    --env PMA_SSL_DIR- \
     --env MAX_EXECUTION_TIME- \
     --env MEMORY_LIMIT- \
     --env UPLOAD_LIMIT- \
+    --env TZ- \
+    --env SESSION_SAVE_PATH- \
     --env VERSION- \
     --env SHA256- \
     --env URL- \
+    --user root \
     "$CONTAINER"
 
 cmd buildah config \
