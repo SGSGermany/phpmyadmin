@@ -100,16 +100,9 @@ user_add "$CONTAINER" mysql 65538
 
 cleanup "$CONTAINER"
 
+con_cleanup "$CONTAINER"
+
 cmd buildah config \
-    --label org.opencontainers.image.title- \
-    --label org.opencontainers.image.description- \
-    --label org.opencontainers.image.version- \
-    --label org.opencontainers.image.url- \
-    --label org.opencontainers.image.source- \
-    --label org.opencontainers.image.documentation- \
-    --label org.opencontainers.image.authors- \
-    --label org.opencontainers.image.vendor- \
-    --label org.opencontainers.image.licenses- \
     --env PMA_SSL_DIR- \
     --env MAX_EXECUTION_TIME- \
     --env MEMORY_LIMIT- \
@@ -145,6 +138,7 @@ cmd buildah config \
     --annotation org.opencontainers.image.licenses="MIT" \
     --annotation org.opencontainers.image.base.name="$BASE_IMAGE" \
     --annotation org.opencontainers.image.base.digest="$(podman image inspect --format '{{.Digest}}' "$BASE_IMAGE")" \
+    --annotation org.opencontainers.image.created="$(date -u +'%+4Y-%m-%dT%H:%M:%SZ')" \
     "$CONTAINER"
 
 con_commit "$CONTAINER" "$IMAGE" "${TAGS[@]}"
