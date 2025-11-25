@@ -22,6 +22,7 @@ export LC_ALL=C.UTF-8
 source "$CI_TOOLS_PATH/helper/common.sh.inc"
 source "$CI_TOOLS_PATH/helper/container.sh.inc"
 source "$CI_TOOLS_PATH/helper/container-alpine.sh.inc"
+source "$CI_TOOLS_PATH/helper/php.sh.inc"
 source "$CI_TOOLS_PATH/helper/git.sh.inc"
 
 BUILD_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -45,6 +46,15 @@ CONTAINER="$(buildah from "$IMAGE-base")"
 
 echo + "MOUNT=\"\$(buildah mount $(quote "$CONTAINER"))\"" >&2
 MOUNT="$(buildah mount "$CONTAINER")"
+
+PHP_FPM_OPEN_BASEDIR_CONF=( "/var/www/" "/etc/phpmyadmin/" "/usr/local/lib/php/" "/tmp/php/" "/dev/urandom" )
+cmd php_patch_config_list -a "$CONTAINER" "/etc/php-fpm/pool.d/www.conf" \
+    "php(_admin)?_(flag|value)" \
+    "php_admin_value[open_basedir]" "$(IFS=:; echo "${PHP_FPM_OPEN_BASEDIR_CONF[*]}")" \
+    "php_admin_value[memory_limit]" "512M" \
+    "php_admin_value[max_execution_time]" "600" \
+    "php_admin_value[upload_max_filesize]" "256M" \
+    "php_admin_value[post_max_size]" "264M"
 
 echo + "rm -f …/docker-entrypoint.sh" >&2
 rm -f "$MOUNT/docker-entrypoint.sh"
